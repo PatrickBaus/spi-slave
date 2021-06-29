@@ -72,57 +72,47 @@ module SPI_Slave
 
   // Purpose: Recover SPI Byte in SPI Clock Domain
   // Samples line on correct edge of SPI Clock
-  always @(posedge w_SPI_Clk or posedge i_SPI_CS_n)
-  begin
-    if (i_SPI_CS_n)
-    begin
+  always @(posedge w_SPI_Clk or posedge i_SPI_CS_n) begin
+    if (i_SPI_CS_n) begin
       r_RX_Bit_Count <= 0;
       r_RX_Done     <= 3'b000;
     end
-    else
-    begin
+    else begin
       r_RX_Bit_Count <= r_RX_Bit_Count + 1;
 
       // Receive in LSB, shift up to MSB
       r_Temp_RX_Byte <= {r_Temp_RX_Byte[6:0], i_SPI_MOSI};
     
-      if (r_RX_Bit_Count == 3'b111)
-      begin
+      if (r_RX_Bit_Count == 3'b111) begin
         // RX_Done needs to moved to the FPGA clock domain, to we will
         // shift it through two flip-flops (the 3rd is for edge detection)
         r_RX_Done <= {r_RX_Done[1:0], 1'b1};
         r_RX_Byte <= {r_Temp_RX_Byte[6:0], i_SPI_MOSI};
       end
-      else if (r_RX_Bit_Count == 3'b010)
-      begin
-        r_RX_Done <= {r_RX_Done[1:0], 1'b0};
+      else begin
+        if (r_RX_Bit_Count == 3'b010) begin
+            r_RX_Done <= {r_RX_Done[1:0], 1'b0};
+        end
       end
-
     end // else: !if(i_SPI_CS_n)
   end // always @(posedge w_SPI_Clk or posedge i_SPI_CS_n)
 
 
-
   // Purpose: Cross from SPI Clock Domain to main FPGA clock domain
   // Assert o_RX_DV for 1 clock cycle when o_RX_Byte has valid data.
-  always @(posedge i_Clk or negedge i_Rst_L)
-  begin
-    if (~i_Rst_L)
-    begin
+  always @(posedge i_Clk or negedge i_Rst_L) begin
+    if (~i_Rst_L) begin
       o_RX_DV    <= 1'b0;
       o_RX_Byte  <= 8'h00;
     end
-    else
-    begin
+    else begin
       // Here is where clock domains are crossed.
       // This will require timing constraint created, can set up long path.
-      if (r_RX_Done[2:1] == 2'b01) // rising edge
-      begin
+      if (r_RX_Done[2:1] == 2'b01) begin // rising edge
         o_RX_DV   <= 1'b1;  // Pulse Data Valid 1 clock cycle
         o_RX_Byte <= r_RX_Byte;
       end
-      else
-      begin
+      else begin
         o_RX_DV <= 1'b0;
       end
     end // else: !if(~i_Rst_L)
@@ -131,14 +121,11 @@ module SPI_Slave
 
   // Control preload signal.  Should be 1 when CS is high, but as soon as
   // first clock edge is seen it goes low.
-  always @(posedge w_SPI_ClK or posedge i_SPI_CS_n)
-  begin
-    if (i_SPI_CS_n)
-    begin
+  always @(posedge w_SPI_ClK or posedge i_SPI_CS_n) begin
+    if (i_SPI_CS_n) begin
       r_Preload_MISO <= 1'b1;
     end
-    else
-    begin
+    else begin
       r_Preload_MISO <= 1'b0;
     end
   end
@@ -147,37 +134,29 @@ module SPI_Slave
   // Purpose: Transmits 1 SPI Byte whenever SPI clock is toggling
   // Will transmit read data back to SW over MISO line.
   // Want to put data on the line immediately when CS goes low.
-  always @(posedge w_SPI_Clk or posedge i_SPI_CS_n)
-  begin
-    if (i_SPI_CS_n)
-    begin
       r_TX_Bit_Count <= 3'b111;  // Send MSb first
       r_SPI_MISO_Bit <= r_TX_Byte[3'b111];  // Reset to MSb
+  always @(posedge w_SPI_Clk or posedge i_SPI_CS_n) begin
+    if (i_SPI_CS_n) begin
     end
-    else
-    begin
+    else begin
       r_TX_Bit_Count <= r_TX_Bit_Count - 1;
 
       // Here is where data crosses clock domains from i_Clk to w_SPI_Clk
       // Can set up a timing constraint with wide margin for data path.
       r_SPI_MISO_Bit <= r_TX_Byte[r_TX_Bit_Count];
-
     end // else: !if(i_SPI_CS_n)
   end // always @(negedge w_SPI_Clk or posedge i_SPI_CS_n)
 
 
   // Purpose: Register TX Byte when DV pulse comes.  Keeps registered byte in
   // this module to get serialized and sent back to master.
-  always @(posedge i_Clk or negedge i_Rst_L)
-  begin
-    if (~i_Rst_L)
-    begin
+  always @(posedge i_Clk or negedge i_Rst_L) begin
+    if (~i_Rst_L) begin
       r_TX_Byte <= 8'h00;
     end
-    else
-    begin
-      if (i_TX_DV)
-      begin
+    else begin
+      if (i_TX_DV) begin
         r_TX_Byte <= i_TX_Byte; 
       end
     end // else: !if(~i_Rst_L)
