@@ -167,10 +167,10 @@ module SPI_Slave
       r_SPI_MISO_Bit <= r_TX_Byte[r_TX_Bit_Count];
 
     end // else: !if(i_SPI_CS_n)
-  end // always @ (negedge w_SPI_Clk or posedge i_SPI_CS_n_SW)
+  end // always @ (negedge w_SPI_Clk or posedge i_SPI_CS_n)
 
 
-  // Purpose: Register TX Byte when DV pulse comes.  Keeps registed byte in 
+  // Purpose: Register TX Byte when DV pulse comes.  Keeps registered byte in
   // this module to get serialized and sent back to master.
   always @(posedge i_Clk or negedge i_Rst_L)
   begin
