@@ -47,7 +47,7 @@ module SPI_Slave
   wire w_SPI_MISO_Mux;
   
   reg [2:0] r_RX_Bit_Count;
-  reg [2:0] r_TX_Bit_Count;
+  reg [4:0] r_TX_Bit_Count;     // 32-bit output register requires counting to 31
   reg [7:0] r_Temp_RX_Byte;
   reg [7:0] r_RX_Byte;
   reg [2:] r_RX_Done;
@@ -134,10 +134,10 @@ module SPI_Slave
   // Purpose: Transmits 1 SPI Byte whenever SPI clock is toggling
   // Will transmit read data back to SW over MISO line.
   // Want to put data on the line immediately when CS goes low.
-      r_TX_Bit_Count <= 3'b111;  // Send MSb first
-      r_SPI_MISO_Bit <= r_TX_Byte[3'b111];  // Reset to MSb
   always @(posedge w_SPI_Clk or posedge i_SPI_CS_n) begin
     if (i_SPI_CS_n) begin
+      r_TX_Bit_Count <= 5'b11111;  // Send MSB first
+      r_SPI_MISO_Bit <= r_TX_Byte[5'b11111];  // Reset to MSB
     end
     else begin
       r_TX_Bit_Count <= r_TX_Bit_Count - 1;
