@@ -25,12 +25,12 @@ module SPI_Slave
   #(parameter SPI_MODE = 0)
   (
    // Control/Data Signals,
-   input            i_Rst_L,    // FPGA Reset
-   input            i_Clk,      // FPGA Clock
-   output reg       o_RX_DV,    // Data Valid pulse (1 clock cycle)
-   output reg [7:0] o_RX_Byte,  // Byte received on MOSI
-   input            i_TX_DV,    // Data Valid pulse to register i_TX_Byte
-   input  [31:0]    i_TX_Byte,  // 4 Byte to serialize to MISO.
+   input             i_Rst_L,    // FPGA Reset
+   input             i_Clk,      // FPGA Clock
+   output reg        o_RX_DV,    // Data Valid pulse (1 clock cycle)
+   output reg [7:0]  o_RX_Byte,  // 1 Byte received on MOSI
+   input             i_TX_DV,    // Data Valid pulse to register i_TX_Byte
+   input  [15:0]     i_TX_Byte,  // 2 Bytes to serialize to MISO.
 
    // SPI Interface
    input       i_SPI_Clk,
@@ -46,13 +46,13 @@ module SPI_Slave
   wire w_SPI_Clk;  // Inverted/non-inverted depending on settings
   wire w_SPI_MISO_Mux;
   
-  reg [2:0] r_RX_Bit_Count;
-  reg [4:0] r_TX_Bit_Count;     // 32-bit output register requires counting to 31
-  reg [7:0] r_Temp_RX_Byte;
-  reg [7:0] r_RX_Byte;
-  reg       r_RX_Done;
-  reg [2:0] r_RX_Done_Clk;
-  reg [31:0] r_TX_Byte;
+  reg [3:0]  r_RX_Bit_Count;
+  reg [3:0]  r_TX_Bit_Count;     // 16-bit output register requires counting to 15
+  reg [7:0]  r_Temp_RX_Byte;
+  reg [7:0]  r_RX_Byte;
+  reg        r_RX_Done;
+  reg [2:0]  r_RX_Done_Clk;
+  reg [15:0] r_TX_Byte;
   reg r_SPI_MISO_Bit, r_Preload_MISO;
 
   // CPOL: Clock Polarity
@@ -76,7 +76,8 @@ module SPI_Slave
   always @(posedge w_SPI_Clk or posedge i_SPI_CS_n) begin
     if (i_SPI_CS_n) begin
       r_RX_Bit_Count <= 0;
-      r_RX_Done     <= 1'b0;
+      r_RX_Done      <= 1'b0;
+      r_RX_Byte      <= 8'h00;
     end
     else begin
       r_RX_Bit_Count <= r_RX_Bit_Count + 1;
@@ -84,6 +85,7 @@ module SPI_Slave
       // Receive in LSB, shift up to MSB
       r_Temp_RX_Byte <= {r_Temp_RX_Byte[6:0], i_SPI_MOSI};
     
+      // TODO: Either receive one byte or 2 bytes
       if (r_RX_Bit_Count == 3'b111) begin
         r_RX_Done <= 1'b1;
         r_RX_Byte <= {r_Temp_RX_Byte[6:0], i_SPI_MOSI};
@@ -133,8 +135,8 @@ module SPI_Slave
   // Want to put data on the line immediately when CS goes low.
   always @(posedge w_SPI_Clk or posedge i_SPI_CS_n) begin
     if (i_SPI_CS_n) begin
-      r_TX_Bit_Count <= 5'b11111;  // Send MSB first
-      r_SPI_MISO_Bit <= r_TX_Byte[5'b11111];  // Reset to MSB
+      r_TX_Bit_Count <= 5'b1111;  // Send MSB first
+      r_SPI_MISO_Bit <= r_TX_Byte[5'b1111];  // Reset to MSB
     end
     else begin
       r_TX_Bit_Count <= r_TX_Bit_Count - 1;
@@ -150,7 +152,7 @@ module SPI_Slave
   // this module to get serialized and sent back to master.
   always @(posedge i_Clk or negedge i_Rst_L) begin
     if (~i_Rst_L) begin
-      r_TX_Byte <= 8'h00;
+      r_TX_Byte <= 16'h0000;
     end
     else begin
       if (i_TX_DV) begin
@@ -161,7 +163,7 @@ module SPI_Slave
 
   // Preload MISO with top bit of send data when preload selector is high.
   // Otherwise just send the normal MISO data
-  assign w_SPI_MISO_Mux = r_Preload_MISO ? r_TX_Byte[3'b111] : r_SPI_MISO_Bit;
+  assign w_SPI_MISO_Mux = r_Preload_MISO ? r_TX_Byte[5'b1111] : r_SPI_MISO_Bit;
 
   // Tri-state MISO when CS is high.  Allows for multiple slaves to talk.
   assign o_SPI_MISO = i_SPI_CS_n ? 1'bZ : w_SPI_MISO_Mux;
