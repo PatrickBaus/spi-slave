@@ -50,7 +50,7 @@ module SPI_Slave
   reg [2:0] r_TX_Bit_Count;
   reg [7:0] r_Temp_RX_Byte;
   reg [7:0] r_RX_Byte;
-  reg r_RX_Done, r2_RX_Done, r3_RX_Done;
+  reg [2:] r_RX_Done;
   reg [7:0] r_TX_Byte;
   reg r_SPI_MISO_Bit, r_Preload_MISO;
 
@@ -77,7 +77,7 @@ module SPI_Slave
     if (i_SPI_CS_n)
     begin
       r_RX_Bit_Count <= 0;
-      r_RX_Done      <= 1'b0;
+      r_RX_Done     <= 3'b000;
     end
     else
     begin
@@ -88,16 +88,18 @@ module SPI_Slave
     
       if (r_RX_Bit_Count == 3'b111)
       begin
-        r_RX_Done <= 1'b1;
+        // RX_Done needs to moved to the FPGA clock domain, to we will
+        // shift it through two flip-flops (the 3rd is for edge detection)
+        r_RX_Done <= {r_RX_Done[1:0], 1'b1};
         r_RX_Byte <= {r_Temp_RX_Byte[6:0], i_SPI_MOSI};
       end
       else if (r_RX_Bit_Count == 3'b010)
       begin
-        r_RX_Done <= 1'b0;        
+        r_RX_Done <= {r_RX_Done[1:0], 1'b0};
       end
 
     end // else: !if(i_SPI_CS_n)
-  end // always @ (posedge w_SPI_Clk or posedge i_SPI_CS_n)
+  end // always @(posedge w_SPI_Clk or posedge i_SPI_CS_n)
 
 
 
@@ -107,8 +109,6 @@ module SPI_Slave
   begin
     if (~i_Rst_L)
     begin
-      r2_RX_Done <= 1'b0;
-      r3_RX_Done <= 1'b0;
       o_RX_DV    <= 1'b0;
       o_RX_Byte  <= 8'h00;
     end
@@ -116,11 +116,7 @@ module SPI_Slave
     begin
       // Here is where clock domains are crossed.
       // This will require timing constraint created, can set up long path.
-      r2_RX_Done <= r_RX_Done;
-
-      r3_RX_Done <= r2_RX_Done;
-
-      if (r3_RX_Done == 1'b0 && r2_RX_Done == 1'b1) // rising edge
+      if (r_RX_Done[2:1] == 2'b01) // rising edge
       begin
         o_RX_DV   <= 1'b1;  // Pulse Data Valid 1 clock cycle
         o_RX_Byte <= r_RX_Byte;
@@ -130,7 +126,7 @@ module SPI_Slave
         o_RX_DV <= 1'b0;
       end
     end // else: !if(~i_Rst_L)
-  end // always @ (posedge i_Bus_Clk)
+  end // always @(posedge i_Bus_Clk or negedge i_Rst_L)
 
 
   // Control preload signal.  Should be 1 when CS is high, but as soon as
@@ -167,7 +163,7 @@ module SPI_Slave
       r_SPI_MISO_Bit <= r_TX_Byte[r_TX_Bit_Count];
 
     end // else: !if(i_SPI_CS_n)
-  end // always @ (negedge w_SPI_Clk or posedge i_SPI_CS_n)
+  end // always @(negedge w_SPI_Clk or posedge i_SPI_CS_n)
 
 
   // Purpose: Register TX Byte when DV pulse comes.  Keeps registered byte in
@@ -185,7 +181,7 @@ module SPI_Slave
         r_TX_Byte <= i_TX_Byte; 
       end
     end // else: !if(~i_Rst_L)
-  end // always @ (posedge i_Clk or negedge i_Rst_L)
+  end // always @(posedge i_Clk or negedge i_Rst_L)
 
   // Preload MISO with top bit of send data when preload selector is high.
   // Otherwise just send the normal MISO data
