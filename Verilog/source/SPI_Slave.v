@@ -30,7 +30,7 @@ module SPI_Slave
    output reg       o_RX_DV,    // Data Valid pulse (1 clock cycle)
    output reg [7:0] o_RX_Byte,  // Byte received on MOSI
    input            i_TX_DV,    // Data Valid pulse to register i_TX_Byte
-   input  [7:0]     i_TX_Byte,  // Byte to serialize to MISO.
+   input  [31:0]    i_TX_Byte,  // 4 Byte to serialize to MISO.
 
    // SPI Interface
    input       i_SPI_Clk,
@@ -52,6 +52,7 @@ module SPI_Slave
   reg [7:0] r_RX_Byte;
   reg       r_RX_Done;
   reg [2:0] r_RX_Done_Clk;
+  reg [31:0] r_TX_Byte;
   reg r_SPI_MISO_Bit, r_Preload_MISO;
 
   // CPOL: Clock Polarity
