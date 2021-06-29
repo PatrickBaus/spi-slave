@@ -50,8 +50,8 @@ module SPI_Slave
   reg [4:0] r_TX_Bit_Count;     // 32-bit output register requires counting to 31
   reg [7:0] r_Temp_RX_Byte;
   reg [7:0] r_RX_Byte;
-  reg [2:] r_RX_Done;
-  reg [7:0] r_TX_Byte;
+  reg       r_RX_Done;
+  reg [2:0] r_RX_Done_Clk;
   reg r_SPI_MISO_Bit, r_Preload_MISO;
 
   // CPOL: Clock Polarity
@@ -75,7 +75,7 @@ module SPI_Slave
   always @(posedge w_SPI_Clk or posedge i_SPI_CS_n) begin
     if (i_SPI_CS_n) begin
       r_RX_Bit_Count <= 0;
-      r_RX_Done     <= 3'b000;
+      r_RX_Done     <= 1'b0;
     end
     else begin
       r_RX_Bit_Count <= r_RX_Bit_Count + 1;
@@ -84,15 +84,8 @@ module SPI_Slave
       r_Temp_RX_Byte <= {r_Temp_RX_Byte[6:0], i_SPI_MOSI};
     
       if (r_RX_Bit_Count == 3'b111) begin
-        // RX_Done needs to moved to the FPGA clock domain, to we will
-        // shift it through two flip-flops (the 3rd is for edge detection)
-        r_RX_Done <= {r_RX_Done[1:0], 1'b1};
+        r_RX_Done <= 1'b1;
         r_RX_Byte <= {r_Temp_RX_Byte[6:0], i_SPI_MOSI};
-      end
-      else begin
-        if (r_RX_Bit_Count == 3'b010) begin
-            r_RX_Done <= {r_RX_Done[1:0], 1'b0};
-        end
       end
     end // else: !if(i_SPI_CS_n)
   end // always @(posedge w_SPI_Clk or posedge i_SPI_CS_n)
@@ -104,11 +97,14 @@ module SPI_Slave
     if (~i_Rst_L) begin
       o_RX_DV    <= 1'b0;
       o_RX_Byte  <= 8'h00;
+      r_RX_Done_Clk <= 3'b000;
     end
     else begin
-      // Here is where clock domains are crossed.
-      // This will require timing constraint created, can set up long path.
-      if (r_RX_Done[2:1] == 2'b01) begin // rising edge
+      // RX_Done needs to moved to the FPGA clock domain, to do this, we will
+      // shift it through two flip-flops (the 3rd is for edge detection)
+      r_RX_Done_Clk <= {r_RX_Done_Clk[2:1], r_RX_Done};
+
+      if (r_RX_Done_Clk[2:1] == 2'b01) begin // rising edge
         o_RX_DV   <= 1'b1;  // Pulse Data Valid 1 clock cycle
         o_RX_Byte <= r_RX_Byte;
       end
